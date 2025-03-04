@@ -2,23 +2,32 @@ function delaydisc_firstlevel_main(inp)
 
 multi_fmri=0;   % set this to 1 if more than one run being modeled
 ss=0;           % set this to 1 if spatial smoothing 
+mthresh=0.2;    % masking threshold: 0.8 by default; 0.2 for more liberal threshold for ventral regions
+resid=1;        % set this to 1 to save residuals (e.g. for AFNI)
 
 % Setup file lists for spm
-[fmri1_path,fmri1_name,fmri1_ext]=fileparts(inp.fmri1_nii);                      	% fmri1 file parts
-onsets1=inp.multi_conds1;                                                           % onsets file for fmri1
+[fmri1_path,fmri1_name,fmri1_ext]=fileparts(inp.fmri1_nii);                % fmri1 file parts
+onsets1=inp.multi_conds1;                                                  % onsets file for fmri1
+
 if ~strcmp(inp.fmri2_nii, '')
     multi_fmri=1;
-    [fmri2_path,fmri2_name,fmri2_ext]=fileparts(inp.fmri2_nii);                     % fmri2 file parts
-    onsets2=inp.multi_conds2;                                                       % onsets file for fmri2
+    [fmri2_path,fmri2_name,fmri2_ext]=fileparts(inp.fmri2_nii);            % fmri2 file parts
+    onsets2=inp.multi_conds2;                                              % onsets file for fmri2
 end
-tr=str2num(inp.tr);                                                                 % repetition time in seconds
-n_vols=str2num(inp.n_vols);                                                         % number of volumes in fmri.nii
-if ~strcmp(inp.fwhm, '')                                                            % fwhm of spatial smoothing kernel
+
+tr=str2num(inp.tr);                                                        % repetition time in seconds
+n_vols=str2num(inp.n_vols);                                                % number of volumes in fmri.nii
+if ~strcmp(inp.fwhm, '')                                                   % fwhm of spatial smoothing kernel
     ss=1;
     fwhm=str2num(inp.fwhm);
 end
-batchfile_ss=fullfile(inp.out_dir,'delaydisc_smooth_batch.mat');                     % save batch job for smoothing here
-batchfile=fullfile(inp.out_dir,'delaydisc_firstlevel_batch.mat');                    % save batch job here
+if ~strcmp(inp.hpf, '')                                                   % high pass filter cutoff in seconds
+    hpf=str2num(inp.hpf);
+end
+
+batchfile_ss=fullfile(inp.out_dir,'smooth_batch.mat');                     % save batch job for smoothing here
+batchfile=fullfile(inp.out_dir,'firstlevel_batch.mat');                    % save batch job here
+spmfile=fullfile(inp.out_dir,'SPM.mat');                                   % first level model file
 
 
 % Extract motion parameters
@@ -75,7 +84,7 @@ matlabbatch{1}.spm.stats.fmri_spec.sess(1).cond = struct('name', {}, 'onset', {}
 matlabbatch{1}.spm.stats.fmri_spec.sess(1).multi = {inp.multi_conds1};
 matlabbatch{1}.spm.stats.fmri_spec.sess(1).regress = struct('name', {}, 'val', {});
 matlabbatch{1}.spm.stats.fmri_spec.sess(1).multi_reg = {rp_file1};
-matlabbatch{1}.spm.stats.fmri_spec.sess(1).hpf = 128;
+matlabbatch{1}.spm.stats.fmri_spec.sess(1).hpf = hpf;
 
 % setup fmri2
 if multi_fmri   
@@ -93,25 +102,32 @@ matlabbatch{1}.spm.stats.fmri_spec.fact = struct('name', {}, 'levels', {});
 matlabbatch{1}.spm.stats.fmri_spec.bases.hrf.derivs = [0 0];
 matlabbatch{1}.spm.stats.fmri_spec.volt = 1;
 matlabbatch{1}.spm.stats.fmri_spec.global = 'None';
-matlabbatch{1}.spm.stats.fmri_spec.mthresh = 0.8;
+matlabbatch{1}.spm.stats.fmri_spec.mthresh = mthresh;
 matlabbatch{1}.spm.stats.fmri_spec.mask = {''};
 matlabbatch{1}.spm.stats.fmri_spec.cvi = 'AR(1)';
-
+    
 % estimate model
-matlabbatch{2}.spm.stats.fmri_est.spmmat(1) = cfg_dep('fMRI model specification: SPM.mat File', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
-matlabbatch{2}.spm.stats.fmri_est.write_residuals = 0;
+% matlabbatch{2}.spm.stats.fmri_est.spmmat(1) = cfg_dep('fMRI model specification: SPM.mat File', substruct('.','val', '{}',{1}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
+matlabbatch{2}.spm.stats.fmri_est.spmmat = {spmfile};
+matlabbatch{2}.spm.stats.fmri_est.write_residuals = resid;
 matlabbatch{2}.spm.stats.fmri_est.method.Classical = 1;
 
 % contrasts
-matlabbatch{3}.spm.stats.con.spmmat(1) = cfg_dep('Model estimation: SPM.mat File', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
+% matlabbatch{3}.spm.stats.con.spmmat(1) = cfg_dep('Model estimation: SPM.mat File', substruct('.','val', '{}',{2}, '.','val', '{}',{1}, '.','val', '{}',{1}), substruct('.','spmmat'));
+matlabbatch{3}.spm.stats.con.spmmat = {spmfile};
 matlabbatch{3}.spm.stats.con.consess{1}.tcon.name = 'hard gt easy';
 matlabbatch{3}.spm.stats.con.consess{1}.tcon.weights = [-0.5 -0.5 0.5 0.5];
 matlabbatch{3}.spm.stats.con.consess{1}.tcon.sessrep = 'replsc';
 matlabbatch{3}.spm.stats.con.consess{2}.tcon.name = 'easy gt hard';
 matlabbatch{3}.spm.stats.con.consess{2}.tcon.weights = [0.5 0.5 -0.5 -0.5];
 matlabbatch{3}.spm.stats.con.consess{2}.tcon.sessrep = 'replsc';
+matlabbatch{3}.spm.stats.con.consess{3}.tcon.name = 'now gt later';
+matlabbatch{3}.spm.stats.con.consess{3}.tcon.weights = [-0.5 0.5 -0.5 0.5];
+matlabbatch{3}.spm.stats.con.consess{3}.tcon.sessrep = 'replsc';
+matlabbatch{3}.spm.stats.con.consess{4}.tcon.name = 'later gt now';
+matlabbatch{3}.spm.stats.con.consess{4}.tcon.weights = [0.5 -0.5 0.5 -0.5];
+matlabbatch{3}.spm.stats.con.consess{4}.tcon.sessrep = 'replsc';
 matlabbatch{3}.spm.stats.con.delete = 1;
-
 
 % Save and run batch
 save(batchfile, 'matlabbatch');
