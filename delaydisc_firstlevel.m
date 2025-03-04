@@ -37,6 +37,9 @@ addOptional(P,'n_vols','');
 % Spatial smoothing kernel fwhm
 addOptional(P,'fwhm','');
 
+% High pass filter
+addOptional(P,'hpf','');
+
 % Where to store outputs
 addOptional(P,'out_dir','/OUTPUTS');
 
