@@ -13,7 +13,7 @@ if nargin ~= 3
 end
 
 %% Study specific variables to specify data folders and SPM settings
-study_id='sentry';
+study_id='salad';
 task_id='delaydisc';
 study_dir=fullfile('/home/data/images', study_id);                          % main study directory
 onset_dir=fullfile(study_dir, 'data', 'sourcedata', 'task_data');           % directory with SPM onsets
